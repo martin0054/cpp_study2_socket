@@ -4,17 +4,10 @@
 #include <sys/socket.h>
 #include <iostream>
 #include <string>
-#include <unistd.h>
+#include <sys/time.h>
 #include <sys/types.h>
+#include <unistd.h>
 #include <arpa/inet.h>
-
-// socket() 생성 > bind() 주소할당 > listen() > accept() > read() ,write() > close(;)
-
-// int socket( int domain, int type, int protocol );
-// 	--> 성공 시 파일디스크립터(이하 fd), 실패시 -1 반환.
-//     ㄴ. domain   : 소켓이 사용할 프로토콜 체계(Protocol Family) 정보 전달
-//     ㄴ. type     : 소켓의 데이터 전송방식에 대한 정보 전달
-//     ㄴ. protocol : 두 컴퓨터간 통신에 사용되는 프로토콜 정보 전달
 
 int creatSocket()
 {
@@ -36,7 +29,7 @@ int main(int argc, char *argv[])
 {
 
     // 서버 소켓 파일디스크립터 변수 선언
-    int serv_sock;
+    int server_socket;
 
     // argc가 2가 아니면 1 => error
     if (argc != 2)
@@ -46,80 +39,109 @@ int main(int argc, char *argv[])
     }
 
     // socket 생성
-    serv_sock = creatSocket();
+    server_socket = creatSocket();
 
-    if (serv_sock == -1)
+    if (server_socket == -1)
         error_handling("socket() error");
 
     struct sockaddr_in server_address;
 
     int port = atoi(argv[1]); // atoi(argv[1]) 명령행에서 전달된 첫 번째 인수를 정수로 변환
-                              // serv_sock에 bind 할  주소정보 초기화
+                              // server_socket에 bind 할  주소정보 초기화
     memset(&server_address, 0, sizeof(server_address));
     server_address.sin_family = AF_INET;
     server_address.sin_addr.s_addr = htonl(INADDR_ANY);
     server_address.sin_port = htons(port);
 
     // socket bind - 소켓에 주소 할당
-    int bindStatus = bind(serv_sock, (struct sockaddr *)&server_address, sizeof(server_address));
+    int bindStatus = bind(server_socket, (struct sockaddr *)&server_address, sizeof(server_address));
 
     if (bindStatus < 0) // 성공 : 0 / 실패 : -1
         error_handling("bind() error!");
     // exit(0);
 
     // socket listen , client의 connect 대기
-    std::cout << "Waiting for a client to connect..." << std::endl;
-    int listenStatus = listen(serv_sock, 10); // 10번 기다림
+    int listenStatus = listen(server_socket, 10); // 10번 기다림
     if (listenStatus < 0)
         error_handling("listen() error!");
     // exit(0);
 
+    int selectStatus;
+    fd_set read_fds;
+    struct timeval tv;
+    FD_ZERO(&read_fds);               // reads fd_set 초기화
+    FD_SET(server_socket, &read_fds); // 서버 소켓 fd를 read_fds fd_set에등록
+    int fd_max = server_socket;
+    struct timeval timeout;
+    timeout.tv_sec = 5;     // timeout 초 정의
+    timeout.tv_usec = 5000; // timeout 마이크로초 정의
 
------------
-
-    // accept()함수호출을 해서 실제 데이터를 보낼 수 있는 소켓을 생성
-    socklen_t clnt_addr_size=sizeof(clnt_addr);
-    int clnt_sock=accept(serv_sock, (struct sockaddr*)&clnt_addr,&clnt_addr_size);
-    if(clnt_sock==-1)
-        error_handling("accept() error");  
-    
-    // 메시지를 보낸다
-    char message[]="Hello World!";
-    write(clnt_sock, message, sizeof(message));
-    // 서버, 클라이언트 소켓의 연결을 해제
-    close(clnt_sock);	
-    close(serv_sock);
-    return 0;
-
-
-
-    --------
-sockaddr_in newSockAddr;
-    socklen_t newSockAddrSize = sizeof(newSockAddr);
-    //accept, create a new socket descriptor to 
-    //handle the new connection with client
-    int newSd = accept(serverSd, (sockaddr *)&newSockAddr, &newSockAddrSize);
-    if(newSd < 0)
+    while (true)
     {
-        cerr << "Error accepting request from client!" << endl;
-        exit(1);
-    }
-    cout << "Connected with client!" << endl;
 
-    -------
-      
-    // accept 하기위한 클라이언트 구조체 크기 밑작업 및 함수호출
-    int clnt_addr_size = sizeof(st_clnt_addr);
-    int acceptret = accept(serv_sock,
-                          (struct sockaddr*) &st_clnt_addr,
-                           &clnt_addr_size );
-    if(acceptret == -1) errhandle("accept() ERR!");
-    
-    // sendmsg 보내고, recvmsg에 수신된 string데이터 담기
-    write(clnt_sock, sendmsg, sizeof(sendmsg) );
-    int readstrlen = read(clnt_sock, recvmsg, sizeof(recvmsg)-1);
-    
-    //소켓은 파일이다! 닫아야 한다.
-    close(clnt_sock);
-    close(serv_sock);
+        fd_set cpy_reads = read_fds; // select시 원본 훼손되므로 복사해서 사용
+        selectStatus = select(fd_max + 1, &cpy_reads, NULL, NULL, &timeout);
+
+        if (selectStatus == -1)
+        {
+            error_handling("select() error!");
+            break;
+        }
+        else if (selectStatus == 0)
+        {
+            std::cout << "Waiting for a client to connect" << std::endl;
+            continue;
+        }
+
+        // If the server socket is ready, accept an incoming connection
+        if (FD_ISSET(server_socket, &cpy_reads))
+        { // fd에 변화가 있나~ FD_ISSET으로 확인
+            //  int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+            int client_socket = accept(server_socket, NULL, NULL);
+
+            if (client_socket < 0)
+            {
+                error_handling("client accept() error!");
+                // exit(0);
+            }
+
+            FD_SET(client_socket, &cpy_reads); // 원본 fd_set에 클라이언트 등록!!
+            if (fd_max < client_socket)
+                fd_max = client_socket; // 최대 fd길이 늘려줌 (추가되었으니)
+            std::cout << "client Connect : " << client_socket << std::endl;
+        }
+
+        // client sockets 확인
+        for (int i = 0; i < server_socket; i++)
+        {
+            if (FD_ISSET(i, &cpy_reads))
+            {
+                // Receive data from the client
+                char buffer[1024];
+                int bytes_received = recv(i, buffer, sizeof(buffer), 0);
+                if (bytes_received < 0)
+                {
+                    error_handling("receive() client data error!");
+                    return 1;
+                }
+
+                // recevie data가 없거나 clinet 연결이 끊겼으면 모니터링중인 소켓 해제
+                if (bytes_received == 0)
+                {
+                    FD_CLR(i, &cpy_reads);
+                    close(i);
+                }
+                else
+                {
+                    // Echo the data back to the client
+                    send(i, buffer, bytes_received, 0);
+                }
+            }
+        }
+    }
+
+    // Close the server socket
+    close(server_socket);
+
+    return 0;
 }
