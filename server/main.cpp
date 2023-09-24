@@ -1,19 +1,9 @@
-#include <stdio.h>
+
+#include "tcp-socket-server.h"
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
+#include <stdio.h>
 #include <iostream>
-#include <string>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-
-int creatSocket()
-{
-    // IPv4 인터넷 프로토콜 , 체계에서 동작하는 연결지향형 데이터 전송 소켓(TCP)
-    return socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-}
 
 void error_handling(const char *message);
 
@@ -28,6 +18,7 @@ void error_handling(const char *message)
 int main(int argc, char *argv[])
 {
 
+    SocektServer socketServer;
     // 서버 소켓 파일디스크립터 변수 선언
     int server_socket;
 
@@ -39,7 +30,8 @@ int main(int argc, char *argv[])
     }
 
     // socket 생성
-    server_socket = creatSocket();
+    server_socket = socketServer.getSocket();
+    
 
     if (server_socket == -1)
         error_handling("socket() error");
@@ -54,14 +46,14 @@ int main(int argc, char *argv[])
     server_address.sin_port = htons(port);
 
     // socket bind - 소켓에 주소 할당
-    int bindStatus = bind(server_socket, (struct sockaddr *)&server_address, sizeof(server_address));
+    int bindStatus = socketServer.bindSocket(server_socket, server_address);
 
     if (bindStatus < 0) // 성공 : 0 / 실패 : -1
         error_handling("bind() error!");
     // exit(0);
 
     // socket listen , client의 connect 대기
-    int listenStatus = listen(server_socket, 10); // 10번 기다림
+    int listenStatus = socketServer.listenSocket(server_socket);
     if (listenStatus < 0)
         error_handling("listen() error!");
     // exit(0);
@@ -141,7 +133,7 @@ int main(int argc, char *argv[])
     }
 
     // Close the server socket
-    close(server_socket);
-
+ 
     return 0;
 }
+
