@@ -4,7 +4,9 @@ cpp basic tcp socket study
 
 socket server, client
 
+[Linux]
 sever : create bind listen select accept send
+
 client : creat connect select recive send
 
 
