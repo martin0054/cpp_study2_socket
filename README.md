@@ -1,5 +1,11 @@
 # cpp_study2_socket
-cpp basic socket study
+
+cpp basic tcp socket study
+
+socket server, client
+
+sever : create bind listen select accept send
+client : creat connect select recive send
 
 
 실행하기 :
