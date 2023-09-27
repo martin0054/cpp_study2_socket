@@ -1,0 +1,27 @@
+Window
+
+server : WSAStart() > socket() > bind() > listen() > accept() > recv()/send() > closesocket() > WSACleanup()
+
+client : WSAStart() > socekt()  > connect() > read()/write() > closesocket() > WSACleanup()
+
+
+
+리눅스와 윈도우의 구현 차이점
+Window 소켓 프로그래밍의 절차는 리눅스와 다른 점이 있는데,
+
+
+1. <winsock2.h> 헤더 사용
+    리눅스에서는 sock()의 반환 형이 소켓의 "파일 디스크립터"(int)였다면,
+    윈도우에서는 "소켓 핸들" (SOCKET)을 반환한다.
+
+2. WSAStartup() 함수와 WSACleanup() 함수의 사용
+    윈도우에서는 반드시 프로그램에서 요구하는 윈도우 소켓 버전을 알리고 
+    라이브러리를 초기화 하는 작업을 진행해야 한다.
+
+3. server에서 read,write 대신 recv,send 함수 사용
+    함수 이름 뿐 아니라 윈도우에서는 3번째 인자로 옵션도 추가할 수 있다.
+
+4. close 대신 closesocket 함수 사용
+리눅스와 같은 파일 디스크립터가 아닌 소켓 핸들이므로 closesocket으로 소켓 핸들을 닫는다.
+
+참조 : https://aronglife.tistory.com/entry/NetworkTCPIP-%EC%86%8C%EC%BC%93%ED%94%84%EB%A1%9C%EA%B7%B8%EB%9E%98%EB%B0%8D4%EC%9C%88%EB%8F%84%EC%9A%B0-%EC%84%9C%EB%B2%84-%EA%B5%AC%ED%98%84
